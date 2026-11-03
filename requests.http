@@ -76,3 +76,9 @@ Content-Type: application/json
   "location": "Nowhere",
   "eventDate": "2026-12-22"
 }
+
+### Delete someone else's event (should return 403)
+DELETE http://localhost:8000/events/6ae9b6b7f4c547391f6ffe6e?email=hacker@example.com
+
+### Delete my event (should return 200)
+DELETE http://localhost:8000/events/6ae9b6b7f4c547391f6ffe6e?email=test@example.com

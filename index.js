@@ -216,6 +216,33 @@ app.patch("/events/:id", async (req, res) => {
   res.send(result);
 });
 
+app.delete("/events/:id", async (req, res) => {
+  const { id } = req.params;
+  const { email } = req.query;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({ message: "Invalid event id" });
+  }
+
+  
+  const event = await eventsCollection.findOne({ _id: new ObjectId(id) });
+  if (!event) {
+    return res.status(404).send({ message: "Event not found" });
+  }
+  if (event.creatorEmail !== email) {
+    return res
+      .status(403)
+      .send({ message: "You can only delete your own events" });
+  }
+
+  const result = await eventsCollection.deleteOne({ _id: new ObjectId(id) });
+
+  await joinsCollection.deleteMany({ eventId: id });
+
+  res.send(result);
+
+});
+
 app.listen(port, () => {
   console.log(`KindCircle server running on port ${port}`);
 });
