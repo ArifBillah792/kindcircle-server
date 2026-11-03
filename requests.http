@@ -40,3 +40,9 @@ GET http://localhost:8000/events/6ae9b52f2802c35b53f8db97
 
 ### Invalid id (should return 400)
 GET http://localhost:8000/events/hello
+
+### My events
+GET http://localhost:8000/my-events?email=test@example.com
+
+### My events without email (should return 400)
+GET http://localhost:8000/my-events

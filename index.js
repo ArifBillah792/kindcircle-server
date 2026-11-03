@@ -140,7 +140,21 @@ app.get("/events/:id", async (req, res) => {
   }
 
   res.send(event);
-  
+});
+
+app.get("/my-events", async (req, res) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return res.status(400).send({ message: "Email is required" });
+  }
+
+  const events = await eventsCollection
+    .find({ creatorEmail: email })
+    .sort({ eventDate: 1 })
+    .toArray();
+
+  res.send(events);
 });
 
 app.listen(port, () => {
