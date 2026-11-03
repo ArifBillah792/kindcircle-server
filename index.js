@@ -114,6 +114,18 @@ app.get("/events", async (req, res) => {
   res.send(events);
 });
 
+app.get("/events/recent", async (req, res) => {
+  const today = new Date(new Date().toISOString().slice(0, 10));
+
+  const events = await eventsCollection
+  .find({ eventDate: { $gte: today } })
+  .sort({ eventDate: 1 })
+  .limit(6)
+  .toArray();
+
+  res.send(events);
+});
+
 app.listen(port, () => {
   console.log(`KindCircle server running on port ${port}`);
 });
