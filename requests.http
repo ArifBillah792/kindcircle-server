@@ -101,3 +101,23 @@ Content-Type: application/json
   "userEmail": "volunteer@example.com",
   "userName": "Volunteer One"
 }
+
+
+### My joined events
+GET http://localhost:8000/joined-events?email=volunteer@example.com
+
+### Join status: joined (should be true)
+GET http://localhost:8000/events/6ae9b52f2802c35b53f8db97/join-status?email=volunteer@example.com
+
+### Join status: not joined (should be false)
+GET http://localhost:8000/events/6ae9b52f2802c35b53f8db97/join-status?email=someone@example.com
+
+
+@token = paste_token_here
+
+### No token (should return 401)
+GET http://localhost:8000/my-events
+
+### With token (should return 200)
+GET http://localhost:8000/my-events
+Authorization: Bearer {{token}}

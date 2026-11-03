@@ -4,6 +4,7 @@ dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import express from "express";
 import cors from "cors";
 import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
+import { verifyJWT } from "./verifyJWT.js";
 
 const app = express();
 const port = process.env.PORT || 8000;
@@ -80,46 +81,7 @@ app.get("/", (req, res) => {
   res.send("KindCircle server is running");
 });
 
-// Create an event
-app.post("/events", async (req, res) => {
-  const {
-    title,
-    description,
-    eventType,
-    thumbnail,
-    location,
-    eventDate,
-    creatorEmail,
-    creatorName,
-    creatorPhoto,
-  } = req.body;
-
-  if (!creatorEmail) {
-    return res.status(400).send({ message: "Creator email is required" });
-  }
-
-  const error = validateEvent(req.body);
-  if (error) {
-    return res.status(400).send({ message: error });
-  }
-
-  const newEvent = {
-    title: title.trim(),
-    description: description.trim(),
-    eventType,
-    thumbnail: thumbnail.trim(),
-    location: location.trim(),
-    eventDate: new Date(eventDate),
-    creatorEmail,
-    creatorName: creatorName || "",
-    creatorPhoto: creatorPhoto || "",
-    participantCount: 0,
-    createdAt: new Date(),
-  };
-
-  const result = await eventsCollection.insertOne(newEvent);
-  res.status(201).send(result);
-});
+// ---------- PUBLIC ROUTES ----------
 
 // Get all upcoming events (today or later), soonest first
 app.get("/events", async (req, res) => {
@@ -146,7 +108,7 @@ app.get("/events/recent", async (req, res) => {
   res.send(events);
 });
 
-// Get a single event by id (public)
+// Get a single event by id
 app.get("/events/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -163,17 +125,40 @@ app.get("/events/:id", async (req, res) => {
   res.send(event);
 });
 
-// Get events created by a user (Manage Events page)
-// TEMPORARY: email comes from the query string. Later it will come from the JWT.
-app.get("/my-events", async (req, res) => {
-  const { email } = req.query;
+// ---------- PROTECTED ROUTES (need a valid JWT) ----------
 
-  if (!email) {
-    return res.status(400).send({ message: "Email is required" });
+// Create an event — creator comes from the verified token
+app.post("/events", verifyJWT, async (req, res) => {
+  const { title, description, eventType, thumbnail, location, eventDate } =
+    req.body;
+
+  const error = validateEvent(req.body);
+  if (error) {
+    return res.status(400).send({ message: error });
   }
 
+  const newEvent = {
+    title: title.trim(),
+    description: description.trim(),
+    eventType,
+    thumbnail: thumbnail.trim(),
+    location: location.trim(),
+    eventDate: new Date(eventDate),
+    creatorEmail: req.user.email,
+    creatorName: req.user.name,
+    creatorPhoto: req.user.image,
+    participantCount: 0,
+    createdAt: new Date(),
+  };
+
+  const result = await eventsCollection.insertOne(newEvent);
+  res.status(201).send(result);
+});
+
+// Get events created by the logged-in user (Manage Events page)
+app.get("/my-events", verifyJWT, async (req, res) => {
   const events = await eventsCollection
-    .find({ creatorEmail: email })
+    .find({ creatorEmail: req.user.email })
     .sort({ eventDate: 1 })
     .toArray();
 
@@ -181,18 +166,10 @@ app.get("/my-events", async (req, res) => {
 });
 
 // Update an event (only by its creator)
-// TEMPORARY: email comes from the body. Later it will come from the JWT.
-app.patch("/events/:id", async (req, res) => {
+app.patch("/events/:id", verifyJWT, async (req, res) => {
   const { id } = req.params;
-  const {
-    email,
-    title,
-    description,
-    eventType,
-    thumbnail,
-    location,
-    eventDate,
-  } = req.body;
+  const { title, description, eventType, thumbnail, location, eventDate } =
+    req.body;
 
   if (!ObjectId.isValid(id)) {
     return res.status(400).send({ message: "Invalid event id" });
@@ -208,7 +185,7 @@ app.patch("/events/:id", async (req, res) => {
   if (!event) {
     return res.status(404).send({ message: "Event not found" });
   }
-  if (event.creatorEmail !== email) {
+  if (event.creatorEmail !== req.user.email) {
     return res
       .status(403)
       .send({ message: "You can only update your own events" });
@@ -232,10 +209,8 @@ app.patch("/events/:id", async (req, res) => {
 });
 
 // Delete an event (only by its creator)
-// TEMPORARY: email comes from the query string. Later it will come from the JWT.
-app.delete("/events/:id", async (req, res) => {
+app.delete("/events/:id", verifyJWT, async (req, res) => {
   const { id } = req.params;
-  const { email } = req.query;
 
   if (!ObjectId.isValid(id)) {
     return res.status(400).send({ message: "Invalid event id" });
@@ -246,7 +221,7 @@ app.delete("/events/:id", async (req, res) => {
   if (!event) {
     return res.status(404).send({ message: "Event not found" });
   }
-  if (event.creatorEmail !== email) {
+  if (event.creatorEmail !== req.user.email) {
     return res
       .status(403)
       .send({ message: "You can only delete your own events" });
@@ -260,17 +235,13 @@ app.delete("/events/:id", async (req, res) => {
   res.send(result);
 });
 
-// Join an event
-// TEMPORARY: user info comes from the body. Later the email will come from the JWT.
-app.post("/events/:id/join", async (req, res) => {
+// Join an event — user comes from the verified token
+app.post("/events/:id/join", verifyJWT, async (req, res) => {
   const { id } = req.params;
-  const { userEmail, userName, userPhoto } = req.body;
+  const { email, name, image } = req.user;
 
   if (!ObjectId.isValid(id)) {
     return res.status(400).send({ message: "Invalid event id" });
-  }
-  if (!userEmail) {
-    return res.status(400).send({ message: "User email is required" });
   }
 
   const event = await eventsCollection.findOne({ _id: new ObjectId(id) });
@@ -287,7 +258,7 @@ app.post("/events/:id/join", async (req, res) => {
   // Already joined?
   const alreadyJoined = await joinsCollection.findOne({
     eventId: id,
-    userEmail,
+    userEmail: email,
   });
   if (alreadyJoined) {
     return res
@@ -303,9 +274,9 @@ app.post("/events/:id/join", async (req, res) => {
     eventLocation: event.location,
     eventThumbnail: event.thumbnail,
     eventDate: event.eventDate,
-    userEmail,
-    userName: userName || "",
-    userPhoto: userPhoto || "",
+    userEmail: email,
+    userName: name,
+    userPhoto: image,
     joinedAt: new Date(),
   };
 
@@ -320,32 +291,21 @@ app.post("/events/:id/join", async (req, res) => {
   res.status(201).send(result);
 });
 
-app.get("/joined-events", async (req, res) => {
-  const { email } = req.query;
-
-  if (!email) {
-    return res.status(400).send({ message: "Email is required" });
-  }
-
+// Get events joined by the logged-in user, sorted by event date
+app.get("/joined-events", verifyJWT, async (req, res) => {
   const joined = await joinsCollection
-    .find({ userEmail: email })
+    .find({ userEmail: req.user.email })
     .sort({ eventDate: 1 })
     .toArray();
 
   res.send(joined);
 });
 
-app.get("/events/:id/join-status", async (req, res) => {
-  const { id } = req.params;
-  const { email } = req.query;
-
-  if (!email) {
-    return res.status(400).send({ message: "Email is required" });
-  }
-
+// Has the logged-in user joined this event? (details page button)
+app.get("/events/:id/join-status", verifyJWT, async (req, res) => {
   const record = await joinsCollection.findOne({
-    eventId: id,
-    userEmail: email,
+    eventId: req.params.id,
+    userEmail: req.user.email,
   });
   res.send({ joined: !!record });
 });
