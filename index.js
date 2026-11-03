@@ -3,7 +3,7 @@ import dns from "node:dns";
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import express from "express";
 import cors from "cors";
-import { MongoClient, ServerApiVersion } from "mongodb";
+import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
 
 const app = express();
 const port = process.env.PORT || 8000;
@@ -118,12 +118,29 @@ app.get("/events/recent", async (req, res) => {
   const today = new Date(new Date().toISOString().slice(0, 10));
 
   const events = await eventsCollection
-  .find({ eventDate: { $gte: today } })
-  .sort({ eventDate: 1 })
-  .limit(6)
-  .toArray();
+    .find({ eventDate: { $gte: today } })
+    .sort({ eventDate: 1 })
+    .limit(6)
+    .toArray();
 
   res.send(events);
+});
+
+app.get("/events/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({ message: "Invalid event id" });
+  }
+
+  const event = await eventsCollection.findOne({ _id: new ObjectId(id) });
+
+  if (!event) {
+    return res.status(404).send({ message: "Event not found" });
+  }
+
+  res.send(event);
+  
 });
 
 app.listen(port, () => {

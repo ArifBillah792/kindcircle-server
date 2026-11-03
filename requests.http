@@ -33,3 +33,10 @@ GET http://localhost:8000/events
 
 ### Get 6 recent upcoming events
 GET http://localhost:8000/events/recent
+
+
+### Get single event
+GET http://localhost:8000/events/6ae9b52f2802c35b53f8db97
+
+### Invalid id (should return 400)
+GET http://localhost:8000/events/hello
