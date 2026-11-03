@@ -23,11 +23,17 @@ const db = client.db(process.env.DB_NAME);
 const eventsCollection = db.collection("events");
 const joinsCollection = db.collection("joins");
 
+// Test the connection once when the server starts
 client
   .db("admin")
   .command({ ping: 1 })
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection failed:", err.message));
+
+// One user can join an event only once
+joinsCollection
+  .createIndexes([{ key: { eventId: 1, userEmail: 1 }, unique: true }])
+  .catch((err) => console.error("Index error:", err.message));
 
 const EVENT_TYPES = [
   "Cleanup",
@@ -38,6 +44,7 @@ const EVENT_TYPES = [
   "Food Drive",
 ];
 
+// Shared validation for create and update. Returns an error message, or null if valid.
 function validateEvent({
   title,
   description,
@@ -73,6 +80,7 @@ app.get("/", (req, res) => {
   res.send("KindCircle server is running");
 });
 
+// Create an event
 app.post("/events", async (req, res) => {
   const {
     title,
@@ -113,6 +121,7 @@ app.post("/events", async (req, res) => {
   res.status(201).send(result);
 });
 
+// Get all upcoming events (today or later), soonest first
 app.get("/events", async (req, res) => {
   const today = new Date(new Date().toISOString().slice(0, 10));
 
@@ -124,6 +133,7 @@ app.get("/events", async (req, res) => {
   res.send(events);
 });
 
+// Get 6 nearest upcoming events (home page)
 app.get("/events/recent", async (req, res) => {
   const today = new Date(new Date().toISOString().slice(0, 10));
 
@@ -136,6 +146,7 @@ app.get("/events/recent", async (req, res) => {
   res.send(events);
 });
 
+// Get a single event by id (public)
 app.get("/events/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -152,6 +163,8 @@ app.get("/events/:id", async (req, res) => {
   res.send(event);
 });
 
+// Get events created by a user (Manage Events page)
+// TEMPORARY: email comes from the query string. Later it will come from the JWT.
 app.get("/my-events", async (req, res) => {
   const { email } = req.query;
 
@@ -167,6 +180,8 @@ app.get("/my-events", async (req, res) => {
   res.send(events);
 });
 
+// Update an event (only by its creator)
+// TEMPORARY: email comes from the body. Later it will come from the JWT.
 app.patch("/events/:id", async (req, res) => {
   const { id } = req.params;
   const {
@@ -216,6 +231,8 @@ app.patch("/events/:id", async (req, res) => {
   res.send(result);
 });
 
+// Delete an event (only by its creator)
+// TEMPORARY: email comes from the query string. Later it will come from the JWT.
 app.delete("/events/:id", async (req, res) => {
   const { id } = req.params;
   const { email } = req.query;
@@ -224,7 +241,7 @@ app.delete("/events/:id", async (req, res) => {
     return res.status(400).send({ message: "Invalid event id" });
   }
 
-  
+  // Ownership check
   const event = await eventsCollection.findOne({ _id: new ObjectId(id) });
   if (!event) {
     return res.status(404).send({ message: "Event not found" });
@@ -237,10 +254,70 @@ app.delete("/events/:id", async (req, res) => {
 
   const result = await eventsCollection.deleteOne({ _id: new ObjectId(id) });
 
+  // Clean up everyone's join records for this event
   await joinsCollection.deleteMany({ eventId: id });
 
   res.send(result);
+});
 
+// Join an event
+// TEMPORARY: user info comes from the body. Later the email will come from the JWT.
+app.post("/events/:id/join", async (req, res) => {
+  const { id } = req.params;
+  const { userEmail, userName, userPhoto } = req.body;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({ message: "Invalid event id" });
+  }
+  if (!userEmail) {
+    return res.status(400).send({ message: "User email is required" });
+  }
+
+  const event = await eventsCollection.findOne({ _id: new ObjectId(id) });
+  if (!event) {
+    return res.status(404).send({ message: "Event not found" });
+  }
+
+  // Can't join an event that has already passed
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  if (event.eventDate < today) {
+    return res.status(400).send({ message: "This event has already ended" });
+  }
+
+  // Already joined?
+  const alreadyJoined = await joinsCollection.findOne({
+    eventId: id,
+    userEmail,
+  });
+  if (alreadyJoined) {
+    return res
+      .status(409)
+      .send({ message: "You have already joined this event" });
+  }
+
+  // Store event data + user data together
+  const joinRecord = {
+    eventId: id,
+    eventTitle: event.title,
+    eventType: event.eventType,
+    eventLocation: event.location,
+    eventThumbnail: event.thumbnail,
+    eventDate: event.eventDate,
+    userEmail,
+    userName: userName || "",
+    userPhoto: userPhoto || "",
+    joinedAt: new Date(),
+  };
+
+  const result = await joinsCollection.insertOne(joinRecord);
+
+  // Increase the event's participant count by 1
+  await eventsCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $inc: { participantCount: 1 } },
+  );
+
+  res.status(201).send(result);
 });
 
 app.listen(port, () => {

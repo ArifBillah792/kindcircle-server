@@ -82,3 +82,22 @@ DELETE http://localhost:8000/events/6ae9b6b7f4c547391f6ffe6e?email=hacker@exampl
 
 ### Delete my event (should return 200)
 DELETE http://localhost:8000/events/6ae9b6b7f4c547391f6ffe6e?email=test@example.com
+
+
+### Join event (should return 201)
+POST http://localhost:8000/events/6ae9b52f2802c35b53f8db97/join
+Content-Type: application/json
+
+{
+  "userEmail": "volunteer@example.com",
+  "userName": "Volunteer One"
+}
+
+### Join again (should return 409)
+POST http://localhost:8000/events/6ae9b52f2802c35b53f8db97/join
+Content-Type: application/json
+
+{
+  "userEmail": "volunteer@example.com",
+  "userName": "Volunteer One"
+}
