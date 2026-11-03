@@ -320,6 +320,36 @@ app.post("/events/:id/join", async (req, res) => {
   res.status(201).send(result);
 });
 
+app.get("/joined-events", async (req, res) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return res.status(400).send({ message: "Email is required" });
+  }
+
+  const joined = await joinsCollection
+    .find({ userEmail: email })
+    .sort({ eventDate: 1 })
+    .toArray();
+
+  res.send(joined);
+});
+
+app.get("/events/:id/join-status", async (req, res) => {
+  const { id } = req.params;
+  const { email } = req.query;
+
+  if (!email) {
+    return res.status(400).send({ message: "Email is required" });
+  }
+
+  const record = await joinsCollection.findOne({
+    eventId: id,
+    userEmail: email,
+  });
+  res.send({ joined: !!record });
+});
+
 app.listen(port, () => {
   console.log(`KindCircle server running on port ${port}`);
 });
