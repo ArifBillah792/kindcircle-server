@@ -46,3 +46,33 @@ GET http://localhost:8000/my-events?email=test@example.com
 
 ### My events without email (should return 400)
 GET http://localhost:8000/my-events
+
+
+
+### Update my event (should return 200)
+PATCH http://localhost:8000/events/6ae9b52f2802c35b53f8db97
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "title": "Winter Clothes & Blanket Distribution",
+  "description": "Distributing warm clothes and blankets to families in need.",
+  "eventType": "Donation",
+  "thumbnail": "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c",
+  "location": "Mirpur 10, Dhaka",
+  "eventDate": "2026-12-22"
+}
+
+### Update someone else's event (should return 403)
+PATCH http://localhost:8000/events/6ae9b52f2802c35b53f8db97
+Content-Type: application/json
+
+{
+  "email": "hacker@example.com",
+  "title": "Hacked",
+  "description": "Should not work.",
+  "eventType": "Donation",
+  "thumbnail": "https://example.com/a.jpg",
+  "location": "Nowhere",
+  "eventDate": "2026-12-22"
+}

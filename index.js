@@ -38,6 +38,37 @@ const EVENT_TYPES = [
   "Food Drive",
 ];
 
+function validateEvent({
+  title,
+  description,
+  eventType,
+  thumbnail,
+  location,
+  eventDate,
+}) {
+  if (
+    !title ||
+    !description ||
+    !eventType ||
+    !thumbnail ||
+    !location ||
+    !eventDate
+  ) {
+    return "All fields are required";
+  }
+  if (!EVENT_TYPES.includes(eventType)) {
+    return "Invalid event type";
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+    return "Date must be in YYYY-MM-DD format";
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  if (eventDate <= today) {
+    return "Event date must be in the future";
+  }
+  return null;
+}
+
 app.get("/", (req, res) => {
   res.send("KindCircle server is running");
 });
@@ -55,34 +86,13 @@ app.post("/events", async (req, res) => {
     creatorPhoto,
   } = req.body;
 
-  if (
-    !title ||
-    !description ||
-    !eventType ||
-    !thumbnail ||
-    !location ||
-    !eventDate ||
-    !creatorEmail
-  ) {
-    return res.status(400).send({ message: "All fields are required" });
+  if (!creatorEmail) {
+    return res.status(400).send({ message: "Creator email is required" });
   }
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
-    return res
-      .status(400)
-      .send({ message: "Date must be in YYYY-MM-DD format" });
-  }
-
-  if (!EVENT_TYPES.includes(eventType)) {
-    return res.status(400).send({ message: "Invalid event type" });
-  }
-
-  const today = new Date().toISOString().slice(0, 10);
-
-  if (eventDate <= today) {
-    return res
-      .status(400)
-      .send({ message: "Event date must be in the future" });
+  const error = validateEvent(req.body);
+  if (error) {
+    return res.status(400).send({ message: error });
   }
 
   const newEvent = {
@@ -155,6 +165,55 @@ app.get("/my-events", async (req, res) => {
     .toArray();
 
   res.send(events);
+});
+
+app.patch("/events/:id", async (req, res) => {
+  const { id } = req.params;
+  const {
+    email,
+    title,
+    description,
+    eventType,
+    thumbnail,
+    location,
+    eventDate,
+  } = req.body;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({ message: "Invalid event id" });
+  }
+
+  const error = validateEvent(req.body);
+  if (error) {
+    return res.status(400).send({ message: error });
+  }
+
+  // Ownership check
+  const event = await eventsCollection.findOne({ _id: new ObjectId(id) });
+  if (!event) {
+    return res.status(404).send({ message: "Event not found" });
+  }
+  if (event.creatorEmail !== email) {
+    return res
+      .status(403)
+      .send({ message: "You can only update your own events" });
+  }
+
+  const result = await eventsCollection.updateOne(
+    { _id: new ObjectId(id) },
+    {
+      $set: {
+        title: title.trim(),
+        description: description.trim(),
+        eventType,
+        thumbnail: thumbnail.trim(),
+        location: location.trim(),
+        eventDate: new Date(eventDate),
+      },
+    },
+  );
+
+  res.send(result);
 });
 
 app.listen(port, () => {
