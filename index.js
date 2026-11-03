@@ -353,3 +353,5 @@ app.get("/events/:id/join-status", async (req, res) => {
 app.listen(port, () => {
   console.log(`KindCircle server running on port ${port}`);
 });
+
+export default app;
