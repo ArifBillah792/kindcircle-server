@@ -30,6 +30,13 @@ export async function verifyJWT(req, res, next) {
     };
     next();
   } catch (error) {
+    // Shows the real reason in the Vercel logs
+    console.error(
+      "JWT verify failed:",
+      error.message,
+      "| CLIENT_URL =",
+      process.env.CLIENT_URL,
+    );
     return res.status(401).send({ message: "Invalid or expired token" });
   }
 }
