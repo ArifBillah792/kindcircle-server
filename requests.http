@@ -1,0 +1,31 @@
+### Create event (should return 201)
+POST http://localhost:8000/events
+Content-Type: application/json
+
+{
+  "title": "Winter Clothes Distribution",
+  "description": "Distributing warm clothes to families in need before winter.",
+  "eventType": "Donation",
+  "thumbnail": "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c",
+  "location": "Mirpur 10, Dhaka",
+  "eventDate": "2026-12-20",
+  "creatorEmail": "test@example.com",
+  "creatorName": "Test User"
+}
+
+### Past date (should return 400)
+POST http://localhost:8000/events
+Content-Type: application/json
+
+{
+  "title": "Old Event",
+  "description": "This should fail.",
+  "eventType": "Cleanup",
+  "thumbnail": "https://example.com/a.jpg",
+  "location": "Dhaka",
+  "eventDate": "2026-01-01",
+  "creatorEmail": "test@example.com"
+}
+
+### Get upcoming events (should return 200)
+GET http://localhost:8000/events
