@@ -31,11 +31,6 @@ client
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection failed:", err.message));
 
-// One user can join an event only once
-joinsCollection
-  .createIndexes([{ key: { eventId: 1, userEmail: 1 }, unique: true }])
-  .catch((err) => console.error("Index error:", err.message));
-
 const EVENT_TYPES = [
   "Cleanup",
   "Plantation",
@@ -67,7 +62,12 @@ function validateEvent({
   if (!EVENT_TYPES.includes(eventType)) {
     return "Invalid event type";
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+  // A date like "2026-12-20" has exactly 10 characters,
+  // and new Date() of a wrong value gives "Invalid Date"
+  if (
+    eventDate.length !== 10 ||
+    new Date(eventDate).toString() === "Invalid Date"
+  ) {
     return "Date must be in YYYY-MM-DD format";
   }
   const today = new Date().toISOString().slice(0, 10);
@@ -255,7 +255,7 @@ app.post("/events/:id/join", verifyJWT, async (req, res) => {
     return res.status(400).send({ message: "This event has already ended" });
   }
 
-  // Already joined?
+  // Already joined? (this check stops duplicate joins)
   const alreadyJoined = await joinsCollection.findOne({
     eventId: id,
     userEmail: email,
