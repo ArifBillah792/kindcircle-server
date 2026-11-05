@@ -1,18 +1,7 @@
-import { createRemoteJWKSet, jwtVerify } from "jose";
-
-let JWKS; // created on first use, not when the server starts
-
-function getJWKS() {
-  if (!JWKS) {
-    JWKS = createRemoteJWKSet(
-      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
-    );
-  }
-  return JWKS;
-}
+import jwt from "jsonwebtoken";
 
 // Middleware: only lets the request through if it has a valid token
-export async function verifyJWT(req, res, next) {
+export function verifyJWT(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -22,21 +11,15 @@ export async function verifyJWT(req, res, next) {
   const token = authHeader.split(" ")[1];
 
   try {
-    const { payload } = await jwtVerify(token, getJWKS());
+    // Checks the signature with our shared secret and the expiry time
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = {
-      email: payload.email,
-      name: payload.name || "",
-      image: payload.image || "",
+      email: decoded.email,
+      name: decoded.name || "",
+      image: decoded.image || "",
     };
     next();
   } catch (error) {
-    // Shows the real reason in the Vercel logs
-    console.error(
-      "JWT verify failed:",
-      error.message,
-      "| CLIENT_URL =",
-      process.env.CLIENT_URL,
-    );
     return res.status(401).send({ message: "Invalid or expired token" });
   }
 }
